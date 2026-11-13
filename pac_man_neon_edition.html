@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAC-MAN Neon Edition (MVC Architecture)</title>
+  <!-- Fuente Retro Pixel Art -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ==========================================================================
+       ESTILOS CSS: ESTÉTICA NEON PIXEL ART Y FISICA DE LUZ
+       ========================================================================== */
+    :root {
+      --bg-color: #05050d;
+      --neon-blue: #00f3ff;
+      --neon-pink: #ff007f;
+      --neon-yellow: #ffee00;
+      --neon-red: #ff2a2a;
+      --panel-bg: rgba(10, 10, 25, 0.92);
+    }
+
+    * {
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      font-family: 'Press Start 2P', monospace;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      overflow: hidden;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05) 0%, transparent 80%),
+        linear-gradient(to bottom, #030308, #080818);
+    }
+
+    /* Brillo Neón */
+    .neon-text-blue {
+      color: var(--neon-blue);
+      text-shadow: 0 0 8px var(--neon-blue), 0 0 20px rgba(0, 243, 255, 0.6);
+    }
+
+    .neon-text-yellow {
+      color: var(--neon-yellow);
+      text-shadow: 0 0 8px var(--neon-yellow), 0 0 18px rgba(255, 238, 0, 0.6);
+    }
+
+    .neon-border-blue {
+      border: 3px solid var(--neon-blue);
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.4), inset 0 0 15px rgba(0, 243, 255, 0.2);
+    }
+
+    .neon-border-pink {
+      border: 3px solid var(--neon-pink);
+      box-shadow: 0 0 15px rgba(255, 0, 127, 0.4), inset 0 0 15px rgba(255, 0, 127, 0.2);
+    }
+
+    /* Botones Neón */
+    .btn-neon {
+      background: transparent;
+      font-family: 'Press Start 2P', monospace;
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-neon-yellow {
+      color: var(--neon-yellow);
+      border: 2px solid var(--neon-yellow);
+      box-shadow: 0 0 10px rgba(255, 238, 0, 0.3);
+    }
+
+    .btn-neon-yellow:hover {
+      background-color: var(--neon-yellow);
+      color: #000;
+      box-shadow: 0 0 25px var(--neon-yellow);
+      transform: scale(1.05);
+    }
+
+    .btn-neon-pink {
+      color: var(--neon-pink);
+      border: 2px solid var(--neon-pink);
+      box-shadow: 0 0 10px rgba(255, 0, 127, 0.3);
+    }
+
+    .btn-neon-pink:hover {
+      background-color: var(--neon-pink);
+      color: #fff;
+      box-shadow: 0 0 25px var(--neon-pink);
+      transform: scale(1.05);
+    }
+
+    .btn-neon-blue {
+      color: var(--neon-blue);
+      border: 2px solid var(--neon-blue);
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+    }
+
+    .btn-neon-blue:hover {
+      background-color: var(--neon-blue);
+      color: #000;
+      box-shadow: 0 0 25px var(--neon-blue);
+      transform: scale(1.05);
+    }
+
+    /* Canvas Responsivo */
+    #gameCanvas {
+      background-color: #000005;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.25), inset 0 0 15px rgba(0, 0, 0, 0.9);
+      max-width: 95vw;
+      max-height: 75vh;
+    }
+
+    /* Modales y Capas de Interfaz */
+    .overlay-screen {
+      background: var(--panel-bg);
+      backdrop-filter: blur(6px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       VISTA HTML: INTERFACES DE USUARIO Y CONTENEDOR DEL JUEGO
+       ========================================================================== -->
+  <div class="relative w-full max-w-4xl flex flex-col items-center justify-center p-4">
+    
+    <!-- ENCABEZADO / HUD -->
+    <header class="w-full flex justify-between items-center mb-4 px-6 py-3 rounded-lg neon-border-blue bg-slate-950/80">
+      <div>
+        <span class="text-xs text-cyan-400 block mb-1">SCORE</span>
+        <span id="scoreDisplay" class="text-lg text-yellow-300 neon-text-yellow">0000</span>
+      </div>
+      <div class="text-center">
+        <h1 class="text-sm md:text-xl font-bold neon-text-blue tracking-wider">PAC-MAN</h1>
+        <span id="difficultyBadge" class="text-[9px] text-pink-400 tracking-widest hidden">MODO: FÁCIL</span>
+      </div>
+      <div>
+        <span class="text-xs text-cyan-400 block mb-1 text-right">LIVES</span>
+        <div id="livesContainer" class="flex gap-2 justify-end text-yellow-400 text-sm">
+          <!-- Corazones / Vidas dinámicas -->
+        </div>
+      </div>
+    </header>
+
+    <!-- AREA DEL CANVAS DEL JUEGO -->
+    <main class="relative flex items-center justify-center w-full">
+      <canvas id="gameCanvas" width="570" height="630"></canvas>
+
+      <!-- 1. PANTALLA PRINCIPAL: INICIAR PARTIDA -->
+      <section id="mainMenu" class="overlay-screen absolute inset-0 flex flex-col items-center justify-center gap-8 rounded-xl z-20">
+        <div class="text-center px-4">
+          <h2 class="text-2xl md:text-4xl font-extrabold neon-text-yellow mb-2 tracking-widest animate-pulse">PAC-MAN</h2>
+          <p class="text-xs text-cyan-300 tracking-widest">NEON CMD EDITION by academia sánchez</p>
+        </div>
+        <button id="btnIniciarPartida" class="btn-neon btn-neon-yellow px-8 py-4 text-sm md:text-base rounded-md">
+          INICIAR PARTIDA
+        </button>
+      </section>
+
+      <!-- 2. PANTALLA SELECCIÓN DE DIFICULTAD -->
+      <section id="difficultyMenu" class="overlay-screen absolute inset-0 flex flex-col items-center justify-center gap-6 rounded-xl z-20 hidden">
+        <h3 class="text-lg md:text-xl text-cyan-300 neon-text-blue mb-4">SELECCIONAR DIFICULTAD</h3>
+        <div class="flex flex-col md:flex-row gap-6">
+          <button id="btnFacil" class="btn-neon btn-neon-blue px-6 py-3 text-sm rounded-md">
+            FÁCIL
+          </button>
+          <button id="btnDificil" class="btn-neon btn-neon-pink px-6 py-3 text-sm rounded-md">
+            DIFÍCIL
+          </button>
+        </div>
+      </section>
+
+      <!-- 3. PANTALLA DE PAUSA -->
+      <section id="pauseOverlay" class="overlay-screen absolute inset-0 flex flex-col items-center justify-center gap-6 rounded-xl z-30 hidden">
+        <h2 class="text-xl md:text-3xl text-yellow-300 neon-text-yellow tracking-wider">You are paused</h2>
+        <p class="text-[10px] text-slate-400 mb-2">[ Presiona ENTER o click abajo ]</p>
+        <button id="btnContinuar" class="btn-neon btn-neon-yellow px-8 py-3 text-sm rounded-md">
+          Continuar
+        </button>
+      </section>
+
+      <!-- 4. PANTALLA FIN DE JUEGO / VICTORIA -->
+      <section id="gameOverOverlay" class="overlay-screen absolute inset-0 flex flex-col items-center justify-center gap-6 rounded-xl z-30 hidden">
+        <h2 id="endGameTitle" class="text-2xl md:text-4xl text-red-500 neon-text-pink">GAME OVER</h2>
+        <p id="endGameScore" class="text-xs text-yellow-300">PUNTAJE FINAL: 0</p>
+        <button id="btnReiniciar" class="btn-neon btn-neon-blue px-6 py-3 text-xs rounded-md">
+          JUGAR DE NUEVO
+        </button>
+      </section>
+    </main>
+
+    <!-- FOOTER CONTROLES -->
+    <footer class="mt-4 text-[10px] text-slate-400 text-center">
+      CONTROLES: FLECHAS DIRECTRICES | ESC: PAUSA | ENTER: CONTINUAR
+    </footer>
+  </div>
+
+  <!-- ==========================================================================
+       MOTOR JS (SIMULACIÓN DE ARQUITECTURA MVC EN UN SOLO ARCHIVO)
+       ========================================================================== -->
+  <script>
+    /**
+     * ========================================================================
+     * MODEL (PACMAN_MODEL.JS) - DATOS, ESTADOS Y LÓGICA DE JUEGO
+     * ========================================================================
+     */
+    class PacManModel {
+      constructor() {
+        this.GRID_COLS = 19;
+        this.GRID_ROWS = 21;
+        this.CELL_SIZE = 30;
+
+        this.score = 0;
+        this.lives = 3;
+        this.difficulty = 'FACIL'; // 'FACIL' | 'DIFICIL'
+        this.gameState = 'MENU';  // 'MENU', 'DIFFICULTY', 'PLAYING', 'PAUSED', 'GAMEOVER', 'WIN'
+
+        // 1: Muro, 0: Punto, 2: Vacío
+        this.initialMap = [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+          [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+          [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+          [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+          [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+          [1,1,1,1,0,1,2,1,1,2,1,1,2,1,0,1,1,1,1],
+          [2,2,2,2,0,2,2,1,2,2,2,1,2,2,0,2,2,2,2],
+          [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+          [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+          [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+          [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+          [1,0,0,1,0,0,0,0,0,2,0,0,0,0,0,1,0,0,1],
+          [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+          [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+          [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        this.map = [];
+        this.totalDots = 0;
+        this.dotsEaten = 0;
+
+        // Jugador (Pac-Man)
+        this.pacman = {
+          x: 9,
+          y: 16,
+          px: 9 * 30,
+          py: 16 * 30,
+          dirX: 0,
+          dirY: 0,
+          nextDirX: 0,
+          nextDirY: 0,
+          speed: 3,
+          mouthAngle: 0.2
+        };
+
+        // Fantasma Único (Blinky)
+        this.ghost = {
+          x: 9,
+          y: 10,
+          px: 9 * 30,
+          py: 10 * 30,
+          dirX: 1,
+          dirY: 0,
+          speed: 2
+        };
+
+        this.cargarAlmacenamientoLocal();
+        this.resetearMapa();
+      }
+
+      resetearMapa() {
+        this.map = JSON.parse(JSON.stringify(this.initialMap));
+        this.totalDots = 0;
+        this.dotsEaten = 0;
+        for (let r = 0; r < this.GRID_ROWS; r++) {
+          for (let c = 0; c < this.GRID_COLS; c++) {
+            if (this.map[r][c] === 0) this.totalDots++;
+          }
+        }
+      }
+
+      resetearPosiciones() {
+        this.pacman.x = 9;
+        this.pacman.y = 16;
+        this.pacman.px = 9 * this.CELL_SIZE;
+        this.pacman.py = 16 * this.CELL_SIZE;
+        this.pacman.dirX = 0;
+        this.pacman.dirY = 0;
+        this.pacman.nextDirX = 0;
+        this.pacman.nextDirY = 0;
+
+        this.ghost.x = 9;
+        this.ghost.y = 10;
+        this.ghost.px = 9 * this.CELL_SIZE;
+        this.ghost.py = 10 * this.CELL_SIZE;
+        this.ghost.dirX = 1;
+        this.ghost.dirY = 0;
+      }
+
+      setDificultad(dif) {
+        this.difficulty = dif;
+        this.ghost.speed = (dif === 'FACIL') ? 2 : 3;
+      }
+
+      // SISTEMA DE GUARDADO EN LOCALSTORAGE
+      guardarAlmacenamientoLocal() {
+        if (this.lives > 0 && (this.gameState === 'PLAYING' || this.gameState === 'PAUSED')) {
+          const data = {
+            score: this.score,
+            lives: this.lives,
+            difficulty: this.difficulty
+          };
+          localStorage.setItem('PACMAN_SAVED_STATE', JSON.stringify(data));
+        }
+      }
+
+      cargarAlmacenamientoLocal() {
+        const data = localStorage.getItem('PACMAN_SAVED_STATE');
+        if (data) {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.lives > 0) {
+              this.score = parsed.score || 0;
+              this.lives = parsed.lives || 3;
+              if (parsed.difficulty) this.setDificultad(parsed.difficulty);
+            }
+          } catch (e) {
+            console.error("Error al cargar localStorage", e);
+          }
+        }
+      }
+
+      limpiarAlmacenamientoLocal() {
+        localStorage.removeItem('PACMAN_SAVED_STATE');
+      }
+    }
+
+    /**
+     * ========================================================================
+     * VIEW (PACMAN_VIEW.JS) - RENDERIZADO VISUAL Y GESTIÓN DE INTERFACES
+     * ========================================================================
+     */
+    class PacManView {
+      constructor(canvas, model) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.model = model;
+
+        // Referencias a la UI
+        this.scoreDisplay = document.getElementById('scoreDisplay');
+        this.livesContainer = document.getElementById('livesContainer');
+        this.difficultyBadge = document.getElementById('difficultyBadge');
+
+        this.mainMenu = document.getElementById('mainMenu');
+        this.difficultyMenu = document.getElementById('difficultyMenu');
+        this.pauseOverlay = document.getElementById('pauseOverlay');
+        this.gameOverOverlay = document.getElementById('gameOverOverlay');
+        this.endGameTitle = document.getElementById('endGameTitle');
+        this.endGameScore = document.getElementById('endGameScore');
+      }
+
+      actualizarHUD() {
+        this.scoreDisplay.innerText = String(this.model.score).padStart(4, '0');
+        this.difficultyBadge.innerText = `MODO: ${this.model.difficulty}`;
+        this.difficultyBadge.classList.remove('hidden');
+
+        // Renderizar vidas
+        this.livesContainer.innerHTML = '';
+        for (let i = 0; i < this.model.lives; i++) {
+          const heart = document.createElement('span');
+          heart.innerText = '💛';
+          this.livesContainer.appendChild(heart);
+        }
+      }
+
+      mostrarPantalla(nombre) {
+        this.mainMenu.classList.add('hidden');
+        this.difficultyMenu.classList.add('hidden');
+        this.pauseOverlay.classList.add('hidden');
+        this.gameOverOverlay.classList.add('hidden');
+
+        if (nombre === 'MENU') this.mainMenu.classList.remove('hidden');
+        if (nombre === 'DIFFICULTY') this.difficultyMenu.classList.remove('hidden');
+        if (nombre === 'PAUSED') this.pauseOverlay.classList.remove('hidden');
+        if (nombre === 'GAMEOVER' || nombre === 'WIN') {
+          this.gameOverOverlay.classList.remove('hidden');
+          if (nombre === 'WIN') {
+            this.endGameTitle.innerText = "¡YOU WIN!";
+            this.endGameTitle.className = "text-2xl md:text-4xl text-yellow-300 neon-text-yellow";
+          } else {
+            this.endGameTitle.innerText = "GAME OVER";
+            this.endGameTitle.className = "text-2xl md:text-4xl text-red-500 neon-text-pink";
+          }
+          this.endGameScore.innerText = `PUNTAJE FINAL: ${this.model.score}`;
+        }
+      }
+
+      render() {
+        const ctx = this.ctx;
+        const cs = this.model.CELL_SIZE;
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 1. Dibujar Mapa con resplandor neón
+        for (let r = 0; r < this.model.GRID_ROWS; r++) {
+          for (let c = 0; c < this.model.GRID_COLS; c++) {
+            const val = this.model.map[r][c];
+            const x = c * cs;
+            const y = r * cs;
+
+            if (val === 1) {
+              // Paredes Neon Blue
+              ctx.shadowColor = '#00f3ff';
+              ctx.shadowBlur = 8;
+              ctx.fillStyle = '#0a1128';
+              ctx.strokeStyle = '#00f3ff';
+              ctx.lineWidth = 2;
+              ctx.fillRect(x + 2, y + 2, cs - 4, cs - 4);
+              ctx.strokeRect(x + 2, y + 2, cs - 4, cs - 4);
+            } else if (val === 0) {
+              // Puntos Neon Yellow
+              ctx.shadowColor = '#ffee00';
+              ctx.shadowBlur = 6;
+              ctx.fillStyle = '#ffee00';
+              ctx.beginPath();
+              ctx.arc(x + cs / 2, y + cs / 2, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+        ctx.shadowBlur = 0; // Limpiar sombra para rendimiento
+
+        // 2. Dibujar Pac-Man
+        const p = this.model.pacman;
+        ctx.shadowColor = '#ffee00';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#ffee00';
+        ctx.beginPath();
+        
+        let angleOffset = 0;
+        if (p.dirX === 1) angleOffset = 0;
+        if (p.dirX === -1) angleOffset = Math.PI;
+        if (p.dirY === 1) angleOffset = Math.PI / 2;
+        if (p.dirY === -1) angleOffset = (3 * Math.PI) / 2;
+
+        const mouth = Math.abs(Math.sin(Date.now() * 0.01)) * 0.25 + 0.05;
+
+        ctx.arc(
+          p.px + cs / 2,
+          p.py + cs / 2,
+          cs / 2 - 3,
+          angleOffset + mouth,
+          angleOffset + Math.PI * 2 - mouth
+        );
+        ctx.lineTo(p.px + cs / 2, p.py + cs / 2);
+        ctx.fill();
+
+        // 3. Dibujar Fantasma Único (Blinky - Neon Red)
+        const g = this.model.ghost;
+        ctx.shadowColor = '#ff2a2a';
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = '#ff2a2a';
+
+        const gx = g.px + cs / 2;
+        const gy = g.py + cs / 2;
+        const radius = cs / 2 - 3;
+
+        ctx.beginPath();
+        ctx.arc(gx, gy - 2, radius, Math.PI, 0, false);
+        ctx.lineTo(gx + radius, gy + radius);
+        // Ocultar tentáculos estilo retro
+        ctx.lineTo(gx + radius / 2, gy + radius - 4);
+        ctx.lineTo(gx, gy + radius);
+        ctx.lineTo(gx - radius / 2, gy + radius - 4);
+        ctx.lineTo(gx - radius, gy + radius);
+        ctx.closePath();
+        ctx.fill();
+
+        // Ojos del fantasma
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(gx - 4, gy - 4, 3, 0, Math.PI * 2);
+        ctx.arc(gx + 4, gy - 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#0000ff';
+        ctx.beginPath();
+        ctx.arc(gx - 4 + g.dirX, gy - 4 + g.dirY, 1.5, 0, Math.PI * 2);
+        ctx.arc(gx + 4 + g.dirX, gy - 4 + g.dirY, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    /**
+     * ========================================================================
+     * CONTROLLER (PACMAN_CONTROLLER.JS) - BUCLE DE JUEGO E INTERACCIÓN
+     * ========================================================================
+     */
+    class PacManController {
+      constructor(model, view) {
+        this.model = model;
+        this.view = view;
+
+        this.vincularEventos();
+        this.iniciarLoop();
+      }
+
+      vincularEventos() {
+        // Botones de Interfaces UI
+        document.getElementById('btnIniciarPartida').addEventListener('click', () => {
+          this.model.gameState = 'DIFFICULTY';
+          this.view.mostrarPantalla('DIFFICULTY');
+        });
+
+        document.getElementById('btnFacil').addEventListener('click', () => {
+          this.iniciarJuego('FACIL');
+        });
+
+        document.getElementById('btnDificil').addEventListener('click', () => {
+          this.iniciarJuego('DIFICIL');
+        });
+
+        document.getElementById('btnContinuar').addEventListener('click', () => {
+          this.reanudarJuego();
+        });
+
+        document.getElementById('btnReiniciar').addEventListener('click', () => {
+          this.model.score = 0;
+          this.model.lives = 3;
+          this.model.resetearMapa();
+          this.model.resetearPosiciones();
+          this.model.gameState = 'DIFFICULTY';
+          this.view.mostrarPantalla('DIFFICULTY');
+        });
+
+        // Controles de Teclado
+        window.addEventListener('keydown', (e) => {
+          if (this.model.gameState === 'PLAYING') {
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+              this.model.pacman.nextDirX = 0; this.model.pacman.nextDirY = -1;
+            }
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+              this.model.pacman.nextDirX = 0; this.model.pacman.nextDirY = 1;
+            }
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+              this.model.pacman.nextDirX = -1; this.model.pacman.nextDirY = 0;
+            }
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+              this.model.pacman.nextDirX = 1; this.model.pacman.nextDirY = 0;
+            }
+            if (e.key === 'Escape') {
+              this.pausarJuego();
+            }
+          } else if (this.model.gameState === 'PAUSED') {
+            if (e.key === 'Enter') {
+              this.reanudarJuego();
+            }
+          }
+        });
+
+        // Guardado al cerrar o recargar ventana
+        window.addEventListener('beforeunload', () => {
+          this.model.guardarAlmacenamientoLocal();
+        });
+      }
+
+      iniciarJuego(dificultad) {
+        this.model.setDificultad(dificultad);
+        this.model.gameState = 'PLAYING';
+        this.view.mostrarPantalla('PLAYING');
+        this.view.actualizarHUD();
+      }
+
+      pausarJuego() {
+        this.model.gameState = 'PAUSED';
+        this.model.guardarAlmacenamientoLocal();
+        this.view.mostrarPantalla('PAUSED');
+      }
+
+      reanudarJuego() {
+        this.model.gameState = 'PLAYING';
+        this.view.mostrarPantalla('PLAYING');
+      }
+
+      actualizarMotor() {
+        if (this.model.gameState !== 'PLAYING') return;
+
+        const cs = this.model.CELL_SIZE;
+        const p = this.model.pacman;
+
+        // 1. Movimiento Pacman centrado a la grilla
+        if (p.px % cs === 0 && p.py % cs === 0) {
+          p.x = Math.round(p.px / cs);
+          p.y = Math.round(p.py / cs);
+
+          // Comer punto
+          if (this.model.map[p.y][p.x] === 0) {
+            this.model.map[p.y][p.x] = 2;
+            this.model.score += 10;
+            this.model.dotsEaten++;
+            this.model.guardarAlmacenamientoLocal();
+            this.view.actualizarHUD();
+
+            if (this.model.dotsEaten >= this.model.totalDots) {
+              this.model.gameState = 'WIN';
+              this.model.limpiarAlmacenamientoLocal();
+              this.view.mostrarPantalla('WIN');
+              return;
+            }
+          }
+
+          // Intentar cambiar dirección sugerida
+          if (this.puedeMoverse(p.x, p.y, p.nextDirX, p.nextDirY)) {
+            p.dirX = p.nextDirX;
+            p.dirY = p.nextDirY;
+          } else if (!this.puedeMoverse(p.x, p.y, p.dirX, p.dirY)) {
+            p.dirX = 0;
+            p.dirY = 0;
+          }
+        }
+
+        p.px += p.dirX * p.speed;
+        p.py += p.dirY * p.speed;
+
+        // 2. Movimiento e IA del Fantasma (Persecución Táctica)
+        const g = this.model.ghost;
+        if (g.px % cs === 0 && g.py % cs === 0) {
+          g.x = Math.round(g.px / cs);
+          g.y = Math.round(g.py / cs);
+
+          this.decidirDireccionFantasma();
+        }
+
+        g.px += g.dirX * g.speed;
+        g.py += g.dirY * g.speed;
+
+        // 3. Detectar Colisión Pacman vs Fantasma
+        const dist = Math.hypot((p.px - g.px), (p.py - g.py));
+        if (dist < cs * 0.7) {
+          this.model.lives--;
+          this.view.actualizarHUD();
+
+          if (this.model.lives <= 0) {
+            this.model.gameState = 'GAMEOVER';
+            this.model.limpiarAlmacenamientoLocal();
+            this.view.mostrarPantalla('GAMEOVER');
+          } else {
+            this.model.resetearPosiciones();
+            this.model.guardarAlmacenamientoLocal();
+          }
+        }
+      }
+
+      decidirDireccionFantasma() {
+        const g = this.model.ghost;
+        const p = this.model.pacman;
+        const direcciones = [
+          { x: 0, y: -1 },
+          { x: 0, y: 1 },
+          { x: -1, y: 0 },
+          { x: 1, y: 0 }
+        ];
+
+        // Filtrar movimientos válidos (no muros ni retrocesos directos)
+        let posibles = direcciones.filter(d => {
+          if (d.x === -g.dirX && d.y === -g.dirY) return false; // No dar la vuelta inmediatamente
+          return this.puedeMoverse(g.x, g.y, d.x, d.y);
+        });
+
+        if (posibles.length === 0) {
+          posibles = direcciones.filter(d => this.puedeMoverse(g.x, g.y, d.x, d.y));
+        }
+
+        if (posibles.length > 0) {
+          // Seleccionar la dirección que minimice la distancia a Pac-Man
+          posibles.sort((a, b) => {
+            const distA = Math.hypot((g.x + a.x) - p.x, (g.y + a.y) - p.y);
+            const distB = Math.hypot((g.x + b.x) - p.x, (g.y + b.y) - p.y);
+            return distA - distB;
+          });
+
+          g.dirX = posibles[0].x;
+          g.dirY = posibles[0].y;
+        }
+      }
+
+      puedeMoverse(x, y, dx, dy) {
+        const nextX = x + dx;
+        const nextY = y + dy;
+        if (nextX < 0 || nextX >= this.model.GRID_COLS || nextY < 0 || nextY >= this.model.GRID_ROWS) {
+          return false;
+        }
+        return this.model.map[nextY][nextX] !== 1;
+      }
+
+      iniciarLoop() {
+        const loop = () => {
+          this.actualizarMotor();
+          this.view.render();
+          requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+      }
+    }
+
+    // ========================================================================
+    // INICIALIZACIÓN DEL SISTEMA
+    // ========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('gameCanvas');
+      const model = new PacManModel();
+      const view = new PacManView(canvas, model);
+      new PacManController(model, view);
+    });
+  </script>
+</body>
+</html>
